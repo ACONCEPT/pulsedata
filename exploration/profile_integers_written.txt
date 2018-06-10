@@ -1,0 +1,1 @@
+throughput : 30.464864864864865 records/secondn,incident_count

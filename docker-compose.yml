@@ -1,0 +1,53 @@
+---
+version: '3.5'
+services:
+  source:
+    image: pulsedata/source:1.1
+    cap_add:
+      - NET_ADMIN
+    container_name: pd_source
+    networks:
+      - default
+    volumes:
+      - ./container_output:/output/
+  mongo:
+    image: pulsedata/mongo:1.1
+    # mongodb needs a hostname
+    hostname: mongo
+    expose:
+      - "27017"
+    container_name: pd_mongo
+    networks:
+      - default
+  kafka-connect:
+    image: pulsedata/connect:1.1
+    volumes:
+      - data-connect:/var/lib/kafka-connect
+    container_name: pd_kafka-connect
+    networks:
+      - default
+  kafka:
+    image: spotify/kafka
+    expose:
+      - "2181"
+      - "9092"
+    environment:
+      - ADVERTISED_HOST=kafka
+      - ADVERTISED_PORT=9092
+    container_name: pd_kafka
+    networks:
+      - default
+  sink:
+    image: pulsedata/sink:1.1
+    container_name: pd_sink
+    networks:
+      - default
+    volumes:
+      - ./container_output:/output/
+
+networks:
+  default:
+    name: pd_default
+
+volumes:
+  data-connect:

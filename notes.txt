@@ -1,0 +1,78 @@
+REPORT NOTES: first thing, after getting the whole thing running in docker, I
+modified
+
+following problems detected:
+
+	-> DUPLICATE USER IDS in mongodb. It doesn't look like the source script is
+		intentionally producting duplicate user ids, but multiple users with different
+		information and the same ID appear in the databse and in the kafka output. Also
+		singleoutputs are repeated multiple times in the kafka output due to replication.
+
+	-> POOR NETWORK I didn't find what is wrong with the data when I run it
+		with the poor network part of the source shell script
+		uncommented. I got similar throughput rates and duplications. I'm not completely
+		sure if it worked well.
+
+metrics collected:
+
+	-> in exploration/explore_data.py I made some data summaries of the data
+		being dumped out of the containers, including couting duplicates and measuring
+		throughput
+	
+
+the sink so that it writes its output to disk. I did this by making the
+following modifications to the code: 
+	1. in docker-compose.yml, I added a volumes block, to mount the
+		"kafka_output" folder to the containter for the sink. is now
+		like this:
+  			sink:
+  			  image: pulsedata/sink:1.1
+  			  container_name: pd_sink
+  			  networks:
+  			    - default
+  			  volumes:
+  			    - ./container_output:/output/
+
+	2. I modified the logging in read_kafka to have a filename argument
+		which makes it write out to the folder mounted in step 1. the argument is added
+		to the loggers basic config:
+			filename = "/output/kafka_consumer_log.txt"
+
+	3. I made a new directory "/exploration/" and placed within it
+		"explore_output.py"
+
+	3. within the explore output file I wrote a python script to count the
+		number of duplicates of each profile number found in the output. from a short
+		run of the pipeline I got the following results:
+			n = 8 , incident_count = 64
+			n = 7 , incident_count = 254
+			n = 6 , incident_count = 664
+			n = 5 , incident_count = 535
+			n = 4 , incident_count = 2440
+			n = 3 , incident_count = 11028
+			n = 2 , incident_count = 5910
+		meaning that 64 different profile numbers were duplicated 8
+		times, and 11028 different profile numbers were duplicated 3 times.
+		NOTE: I checked for duplicates mainly because of this specific
+		line in the README.md: "check for possible errors such as duplicate or missing records."
+
+
+	4. next I mounted a similar logfile for the source script, and modified
+		the write_profile_data.py script similarly to how read_kafka.py was
+		modified. conducted the same anaysis to see if there were
+		duplicates. I found that there are no duplications in the writes
+		directly, but got way different numebrs with way more duplications on the userid
+		in the mongodb. I'm not sure exactly where the duplicates are being created or
+		why userid is unique in the generated data but not in the mongodb. 
+
+	5. After running multiple, trials, I noticed that the duplicates in
+		mongodb were growing with every trial. I thought I was only seeing because
+		mongo persisted in between runs. after running deletemany on the
+		db, I ran another test clearing the database entirely, clearing
+		the logfiles entirely, and testing from scratch. Duplicates aren't written, yet
+		duplicates appear in the database on user_id. and manually checking through the
+		mongo shell confirms that there are more than one user data per user_id number.
+		it doesn't look like the source script should be creating duplicates on user_id,
+		so I'm not sure why this occurs. Also it looks like way more records are getting
+		into kafka than are actually inserted into mongo, this is likely because of the
+		replication factors.
